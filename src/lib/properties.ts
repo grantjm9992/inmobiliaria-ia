@@ -1,0 +1,342 @@
+export type PropertyType = "apartment" | "villa" | "townhouse" | "penthouse" | "studio" | "finca";
+export type OperationType = "sale" | "rent";
+
+export interface Property {
+  id: string;
+  title: string;
+  type: PropertyType;
+  operation: OperationType;
+  price: number;
+  pricePerSqm?: number;
+  size: number; // m²
+  bedrooms: number;
+  bathrooms: number;
+  city: string;
+  neighbourhood: string;
+  region: string;
+  lat: number;
+  lng: number;
+  images: string[];
+  features: string[];
+  description: string;
+  yearBuilt?: number;
+  floor?: number;
+  totalFloors?: number;
+  energyRating?: string;
+  agentName: string;
+  agentAgency: string;
+  listedDate: string;
+  communityFees?: number;
+  ibiTax?: number;
+  tags: string[]; // e.g. "sea views", "pool", "modern kitchen"
+}
+
+// Mock data representing Spanish property market
+export const MOCK_PROPERTIES: Property[] = [
+  {
+    id: "1",
+    title: "Luminoso ático con terraza y vistas al mar",
+    type: "penthouse",
+    operation: "sale",
+    price: 895000,
+    pricePerSqm: 7458,
+    size: 120,
+    bedrooms: 3,
+    bathrooms: 2,
+    city: "Barcelona",
+    neighbourhood: "Barceloneta",
+    region: "Cataluña",
+    lat: 41.3755,
+    lng: 2.1924,
+    images: [
+      "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800",
+      "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800",
+    ],
+    features: ["Terrace 40m²", "Sea views", "Air conditioning", "Lift", "Underground parking"],
+    description:
+      "Spectacular penthouse in the heart of Barceloneta, steps from the beach. Stunning panoramic sea views from the large wraparound terrace. Recently renovated to the highest standard with premium finishes throughout.",
+    yearBuilt: 2018,
+    floor: 6,
+    totalFloors: 6,
+    energyRating: "B",
+    agentName: "Marta Rodríguez",
+    agentAgency: "Barcelona Prime Estates",
+    listedDate: "2024-02-15",
+    communityFees: 280,
+    ibiTax: 2100,
+    tags: ["sea views", "terrace", "renovated", "beach proximity", "penthouse"],
+  },
+  {
+    id: "2",
+    title: "Villa moderna con piscina privada en Marbella",
+    type: "villa",
+    operation: "sale",
+    price: 2350000,
+    pricePerSqm: 5222,
+    size: 450,
+    bedrooms: 5,
+    bathrooms: 4,
+    city: "Marbella",
+    neighbourhood: "La Zagaleta",
+    region: "Andalucía",
+    lat: 36.5085,
+    lng: -4.8859,
+    images: [
+      "https://images.unsplash.com/photo-1613977257363-707ba9348227?w=800",
+      "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800",
+    ],
+    features: ["Private pool", "Garden 800m²", "Home cinema", "Wine cellar", "Gym", "Smart home"],
+    description:
+      "Magnificent contemporary villa in the prestigious La Zagaleta estate. Set behind 24-hour security, this architectural masterpiece features clean lines, floor-to-ceiling glass, and seamless indoor-outdoor living.",
+    yearBuilt: 2021,
+    energyRating: "A",
+    agentName: "James Whitfield",
+    agentAgency: "Marbella Luxury Living",
+    listedDate: "2024-01-10",
+    communityFees: 1200,
+    ibiTax: 8500,
+    tags: ["private pool", "luxury", "gated community", "mountain views", "modern architecture"],
+  },
+  {
+    id: "3",
+    title: "Piso con carácter en el Eixample",
+    type: "apartment",
+    operation: "sale",
+    price: 485000,
+    pricePerSqm: 5389,
+    size: 90,
+    bedrooms: 2,
+    bathrooms: 1,
+    city: "Barcelona",
+    neighbourhood: "Eixample Esquerra",
+    region: "Cataluña",
+    lat: 41.3836,
+    lng: 2.1514,
+    images: [
+      "https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=800",
+      "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800",
+    ],
+    features: ["High ceilings 3.2m", "Original mosaic floors", "Galería", "Renovated kitchen"],
+    description:
+      "Beautiful Modernista apartment on a classic Barcelona street. Original period features including stunning mosaic hydraulic floors and ornate plasterwork ceilings, paired with a fully modernised kitchen and bathroom.",
+    yearBuilt: 1910,
+    floor: 3,
+    totalFloors: 5,
+    energyRating: "E",
+    agentName: "Pau Ferrer",
+    agentAgency: "Eixample Property",
+    listedDate: "2024-03-01",
+    communityFees: 95,
+    ibiTax: 1200,
+    tags: ["high ceilings", "period features", "central", "character", "Modernista"],
+  },
+  {
+    id: "4",
+    title: "Apartamento moderno con vistas al puerto de Valencia",
+    type: "apartment",
+    operation: "sale",
+    price: 320000,
+    pricePerSqm: 4000,
+    size: 80,
+    bedrooms: 2,
+    bathrooms: 2,
+    city: "Valencia",
+    neighbourhood: "La Marina",
+    region: "Comunidad Valenciana",
+    lat: 39.4515,
+    lng: -0.3263,
+    images: [
+      "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800",
+      "https://images.unsplash.com/photo-1554995207-c18c203602cb?w=800",
+    ],
+    features: ["Marina views", "Terrace 12m²", "Air conditioning", "Underground parking", "Storage"],
+    description:
+      "Sleek modern apartment in Valencia's vibrant Marina neighbourhood. Enjoy stunning views over the America's Cup marina from your private terrace. Walking distance to the beach, City of Arts & Sciences, and excellent restaurants.",
+    yearBuilt: 2019,
+    floor: 4,
+    totalFloors: 8,
+    energyRating: "B",
+    agentName: "Ana Martínez",
+    agentAgency: "Valencia Marina Properties",
+    listedDate: "2024-02-28",
+    communityFees: 150,
+    ibiTax: 750,
+    tags: ["marina views", "modern", "terrace", "beach proximity", "Valencia"],
+  },
+  {
+    id: "5",
+    title: "Cortijo restaurado con olivos en Ronda",
+    type: "finca",
+    operation: "sale",
+    price: 780000,
+    pricePerSqm: 1300,
+    size: 600,
+    bedrooms: 4,
+    bathrooms: 3,
+    city: "Ronda",
+    neighbourhood: "Campo",
+    region: "Andalucía",
+    lat: 36.7467,
+    lng: -5.1613,
+    images: [
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800",
+      "https://images.unsplash.com/photo-1549517045-bc93de075a53?w=800",
+    ],
+    features: ["600 olive trees", "Pool", "Wine cellar", "Guest house", "Mountain views", "5 hectares"],
+    description:
+      "Magical restored cortijo set among 600 ancient olive trees with breathtaking views of the Serranía de Ronda. This authentic Andalusian farmhouse blends traditional architecture with modern comforts, including a stunning pool and separate guest cottage.",
+    yearBuilt: 1850,
+    energyRating: "D",
+    agentName: "Diego Sánchez",
+    agentAgency: "Rural Andalucía",
+    listedDate: "2024-01-22",
+    ibiTax: 2800,
+    tags: ["rural", "olive grove", "authentic", "mountain views", "investment", "holiday rental potential"],
+  },
+  {
+    id: "6",
+    title: "Studio minimalista en el Gótico",
+    type: "studio",
+    operation: "rent",
+    price: 1200,
+    pricePerSqm: 30,
+    size: 40,
+    bedrooms: 0,
+    bathrooms: 1,
+    city: "Barcelona",
+    neighbourhood: "Barri Gòtic",
+    region: "Cataluña",
+    lat: 41.3821,
+    lng: 2.1769,
+    images: [
+      "https://images.unsplash.com/photo-1536376072261-38c75010e6c9?w=800",
+    ],
+    features: ["Fully furnished", "Air conditioning", "Smart TV", "High-speed WiFi"],
+    description:
+      "Beautifully designed studio in a restored medieval building in Barcelona's Gothic Quarter. Immaculately furnished with Scandinavian-inspired minimalist decor. Perfect for young professionals or couples.",
+    yearBuilt: 1600,
+    floor: 2,
+    totalFloors: 4,
+    energyRating: "F",
+    agentName: "Laia Puig",
+    agentAgency: "BCN Rentals",
+    listedDate: "2024-03-10",
+    tags: ["furnished", "central", "Gothic Quarter", "minimalist", "digital nomad"],
+  },
+  {
+    id: "7",
+    title: "Chalet adosado con jardín en Pozuelo",
+    type: "townhouse",
+    operation: "sale",
+    price: 650000,
+    pricePerSqm: 3250,
+    size: 200,
+    bedrooms: 4,
+    bathrooms: 3,
+    city: "Madrid",
+    neighbourhood: "Pozuelo de Alarcón",
+    region: "Comunidad de Madrid",
+    lat: 40.4374,
+    lng: -3.8111,
+    images: [
+      "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800",
+      "https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=800",
+    ],
+    features: ["Private garden 150m²", "Garage 2 cars", "Alarm system", "Storage room", "Excellent schools nearby"],
+    description:
+      "Spacious family townhouse in one of Madrid's most desirable residential areas. Excellent international schools within walking distance. Well-maintained communal areas with pool and tennis court.",
+    yearBuilt: 2005,
+    floor: 0,
+    energyRating: "C",
+    agentName: "Ignacio Velázquez",
+    agentAgency: "Madrid Residencial",
+    listedDate: "2024-02-05",
+    communityFees: 320,
+    ibiTax: 3200,
+    tags: ["family", "garden", "good schools", "quiet", "garage"],
+  },
+  {
+    id: "8",
+    title: "Piso de lujo en el Barrio Salamanca",
+    type: "apartment",
+    operation: "rent",
+    price: 4500,
+    pricePerSqm: 45,
+    size: 100,
+    bedrooms: 3,
+    bathrooms: 2,
+    city: "Madrid",
+    neighbourhood: "Barrio Salamanca",
+    region: "Comunidad de Madrid",
+    lat: 40.4312,
+    lng: -3.6817,
+    images: [
+      "https://images.unsplash.com/photo-1600210492493-0946911123ea?w=800",
+      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800",
+    ],
+    features: ["Concierge", "Underground parking", "Air conditioning", "Fully refurbished", "Herringbone floors"],
+    description:
+      "Stunning luxury apartment on one of Madrid's most prestigious streets. Fully refurbished to an exceptional standard with herringbone oak floors, bespoke kitchen, and marble bathrooms. Available from April.",
+    yearBuilt: 1965,
+    floor: 4,
+    totalFloors: 6,
+    energyRating: "C",
+    agentName: "Sofía Herrero",
+    agentAgency: "Salamanca Prime",
+    listedDate: "2024-03-05",
+    tags: ["luxury", "prestigious", "concierge", "refurbished", "expat-friendly"],
+  },
+];
+
+export function searchProperties(query: string, filters: SearchFilters = {}): Property[] {
+  const q = query.toLowerCase();
+  let results = MOCK_PROPERTIES;
+
+  if (filters.operation) {
+    results = results.filter((p) => p.operation === filters.operation);
+  }
+  if (filters.city) {
+    results = results.filter((p) => p.city.toLowerCase().includes(filters.city!.toLowerCase()));
+  }
+  if (filters.maxPrice) {
+    results = results.filter((p) => p.price <= filters.maxPrice!);
+  }
+  if (filters.minBedrooms) {
+    results = results.filter((p) => p.bedrooms >= filters.minBedrooms!);
+  }
+  if (filters.type) {
+    results = results.filter((p) => p.type === filters.type);
+  }
+
+  if (q) {
+    results = results.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        p.city.toLowerCase().includes(q) ||
+        p.neighbourhood.toLowerCase().includes(q) ||
+        p.tags.some((t) => t.toLowerCase().includes(q)) ||
+        p.features.some((f) => f.toLowerCase().includes(q)) ||
+        p.description.toLowerCase().includes(q) ||
+        p.type.toLowerCase().includes(q)
+    );
+  }
+
+  return results;
+}
+
+export interface SearchFilters {
+  operation?: OperationType;
+  city?: string;
+  maxPrice?: number;
+  minBedrooms?: number;
+  type?: PropertyType;
+}
+
+export function formatPrice(price: number, operation: OperationType): string {
+  const formatted = new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(price);
+  return operation === "rent" ? `${formatted}/mes` : formatted;
+}
