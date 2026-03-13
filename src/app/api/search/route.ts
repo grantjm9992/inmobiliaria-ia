@@ -1,137 +1,128 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MOCK_PROPERTIES } from "@/lib/properties";
-import { localSearch } from "@/lib/localSearch";
+import { getRepository } from "@/lib/repository";
+import { parseQuery } from "@/lib/localSearch";
 
 // Disabled after first billing/auth failure so we stop hitting the API on every request
 let aiDisabled = false;
 
-interface SearchResult {
-  properties: typeof MOCK_PROPERTIES;
-  interpretation: string | null;
-  fallback: false | { reason: string };
-}
-
-// Optionally enhance with Claude if ANTHROPIC_API_KEY is available and has credits
-async function aiEnhancedSearch(query: string): Promise<SearchResult> {
+/**
+ * Use Claude tool_use to parse a natural-language query into structured filters.
+ * Falls back to local NLP parser if API key is unavailable or billing fails.
+ */
+async function parseWithClaude(query: string) {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const client = new Anthropic();
 
-  const message = await client.messages.create({
+  const response = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 512,
+    max_tokens: 256,
+    tools: [
+      {
+        name: "parse_property_search",
+        description: "Extract structured property search filters from a natural language query",
+        input_schema: {
+          type: "object" as const,
+          properties: {
+            interpretation: {
+              type: "string",
+              description: "1-2 sentence friendly Spanish summary of what the user is looking for",
+            },
+            operation:    { type: "string", enum: ["sale", "rent"], description: "sale or rent" },
+            city:         { type: "string", description: "Spanish city name, e.g. Barcelona, Madrid" },
+            type:         { type: "string", enum: ["apartment", "villa", "townhouse", "penthouse", "studio", "finca"] },
+            maxPrice:     { type: "number", description: "Maximum price in euros" },
+            minBedrooms:  { type: "integer", description: "Minimum number of bedrooms" },
+            keywords:     { type: "array", items: { type: "string" }, description: "Key lifestyle/feature terms to search for" },
+          },
+          required: ["interpretation"],
+        },
+      },
+    ],
+    tool_choice: { type: "auto" },
     messages: [
       {
         role: "user",
-        content: `You are a Spanish property search assistant for Casalista.
-
-Analyze this query and return a JSON object (no markdown):
-{
-  "interpretation": "1-2 sentence friendly Spanish description of what they want",
-  "filters": {
-    "operation": "sale" | "rent" | null,
-    "city": "Spanish city name" | null,
-    "maxPrice": number | null,
-    "minBedrooms": number | null,
-    "type": "apartment" | "villa" | "townhouse" | "penthouse" | "studio" | "finca" | null
-  },
-  "searchTerms": ["key", "feature", "terms"]
-}
-
-Query: "${query}"
-
-Spanish property vocabulary: piso/apartamento=apartment, ático=penthouse, chalet=villa, adosado=townhouse, finca/cortijo=finca, alquilar=rent, comprar=sale.`,
+        content: `Spanish property search. Vocabulary: piso/apartamento=apartment, ático=penthouse, chalet=villa, adosado=townhouse, finca/cortijo=finca, alquilar=rent, comprar=sale.\n\nQuery: "${query}"`,
       },
     ],
   });
 
-  const content = message.content[0];
-  if (content.type !== "text") throw new Error("unexpected");
+  const toolUse = response.content.find((c) => c.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") return null;
 
-  const parsed = JSON.parse(content.text);
-  const { interpretation, filters, searchTerms = [] } = parsed;
-
-  let results = MOCK_PROPERTIES;
-  if (filters.operation === "sale" || filters.operation === "rent")
-    results = results.filter((p) => p.operation === filters.operation);
-  if (filters.city)
-    results = results.filter((p) =>
-      p.city.toLowerCase().includes(filters.city.toLowerCase())
-    );
-  if (typeof filters.maxPrice === "number")
-    results = results.filter((p) => p.price <= filters.maxPrice);
-  if (typeof filters.minBedrooms === "number")
-    results = results.filter((p) => p.bedrooms >= filters.minBedrooms);
-  if (filters.type)
-    results = results.filter((p) => p.type === filters.type);
-
-  if (searchTerms.length > 0) {
-    const termFiltered = results.filter((p) =>
-      searchTerms.some(
-        (term: string) =>
-          p.title.toLowerCase().includes(term.toLowerCase()) ||
-          p.tags.some((t) => t.toLowerCase().includes(term.toLowerCase())) ||
-          p.features.some((f) => f.toLowerCase().includes(term.toLowerCase())) ||
-          p.description.toLowerCase().includes(term.toLowerCase())
-      )
-    );
-    if (termFiltered.length > 0) results = termFiltered;
-  }
-
-  // Exact match — great
-  if (results.length > 0) {
-    return { properties: results, interpretation, fallback: false };
-  }
-
-  // Zero exact results — relax type but keep operation + city as hard filters
-  let relaxed = MOCK_PROPERTIES;
-  let fallbackReason = "No encontramos resultados exactos";
-
-  if (filters.operation === "sale" || filters.operation === "rent")
-    relaxed = relaxed.filter((p) => p.operation === filters.operation);
-  if (filters.city)
-    relaxed = relaxed.filter((p) => p.city.toLowerCase().includes(filters.city.toLowerCase()));
-
-  if (relaxed.length > 0) {
-    const parts: string[] = [];
-    if (filters.type) parts.push(`no hay ${filters.type === "villa" ? "chalets/villas" : filters.type} disponibles`);
-    if (filters.city) parts.push(`en ${filters.city}`);
-    fallbackReason = `No encontramos ${parts.join(" ")}. Mostrando otras propiedades${filters.city ? ` en ${filters.city}` : ""} que podrían interesarte.`;
-    return { properties: relaxed, interpretation, fallback: { reason: fallbackReason } };
-  }
-
-  // Nothing at all — return local search results
-  const local = localSearch(query);
-  return {
-    properties: local.properties,
-    interpretation,
-    fallback: { reason: "No encontramos resultados exactos para tu búsqueda. Aquí tienes propiedades similares." },
+  return toolUse.input as {
+    interpretation: string;
+    operation?: "sale" | "rent";
+    city?: string;
+    type?: string;
+    maxPrice?: number;
+    minBedrooms?: number;
+    keywords?: string[];
   };
 }
 
 export async function POST(req: NextRequest) {
-  const { query } = await req.json();
+  const { query, filters: explicitFilters = {} } = await req.json();
+  const repo = getRepository();
 
   if (!query?.trim()) {
-    return NextResponse.json({ properties: MOCK_PROPERTIES, interpretation: null, fallback: false });
+    const { properties, total } = await repo.search("", explicitFilters);
+    return NextResponse.json({ properties, total, interpretation: null, fallback: false });
   }
 
-  // Try AI-enhanced search if API key is configured and known-working
+  // ── Try Claude tool_use for query parsing ────────────────────────────────────
   if (process.env.ANTHROPIC_API_KEY && !aiDisabled) {
     try {
-      const result = await aiEnhancedSearch(query);
-      return NextResponse.json(result);
+      const parsed = await parseWithClaude(query);
+      if (parsed) {
+        const filters = {
+          ...explicitFilters,
+          ...(parsed.operation    ? { operation: parsed.operation }         : {}),
+          ...(parsed.city         ? { city: parsed.city }                   : {}),
+          ...(parsed.type         ? { type: parsed.type as PropertyFilters["type"] } : {}),
+          ...(parsed.maxPrice     ? { maxPrice: parsed.maxPrice }           : {}),
+          ...(parsed.minBedrooms  ? { minBedrooms: parsed.minBedrooms }     : {}),
+        };
+
+        // Search with AI-parsed filters; pass remaining keywords as query
+        const keywordQuery = parsed.keywords?.join(" ") ?? "";
+        const { properties, total } = await repo.search(keywordQuery, filters);
+
+        const fallback = properties.length === 0
+          ? { reason: "No encontramos resultados exactos. Mostrando propiedades similares." }
+          : false;
+
+        return NextResponse.json({ properties, total, interpretation: parsed.interpretation, fallback });
+      }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes("credit balance") || msg.includes("invalid_api_key") || msg.includes("authentication")) {
         aiDisabled = true;
-        console.log("ℹ️  Casalista: Anthropic API unavailable (billing/auth), using local NLP parser");
+        console.log("ℹ️  Casalista: Anthropic API unavailable, using local NLP parser");
       } else {
-        console.warn(`AI search error: ${msg.slice(0, 120)}`);
+        console.warn(`AI parse error: ${msg.slice(0, 120)}`);
       }
     }
   }
 
-  // Local NLP parser — zero cost, no API key needed
-  const { properties, interpretation, fallback } = localSearch(query);
-  return NextResponse.json({ properties, interpretation, fallback });
+  // ── Local NLP parser fallback ────────────────────────────────────────────────
+  const parsed = parseQuery(query);
+  const filters = {
+    ...explicitFilters,
+    ...(parsed.operation   ? { operation: parsed.operation }                    : {}),
+    ...(parsed.city        ? { city: parsed.city }                              : {}),
+    ...(parsed.type        ? { type: parsed.type as PropertyFilters["type"] }   : {}),
+    ...(parsed.maxPrice    ? { maxPrice: parsed.maxPrice }                      : {}),
+    ...(parsed.minBedrooms ? { minBedrooms: parsed.minBedrooms }                : {}),
+  };
+
+  const { properties, total } = await repo.search(parsed.keywords.join(" "), filters);
+  const fallback = properties.length === 0
+    ? { reason: "No encontramos resultados exactos. Mostrando propiedades similares." }
+    : false;
+
+  return NextResponse.json({ properties, total, interpretation: parsed.interpretation, fallback });
 }
+
+// Import type so the file compiles without touching the rest of the codebase
+import type { PropertyFilters } from "@/lib/repository";

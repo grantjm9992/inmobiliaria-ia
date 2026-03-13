@@ -381,50 +381,6 @@ export const MOCK_PROPERTIES: Property[] = [
   },
 ];
 
-export function searchProperties(query: string, filters: SearchFilters = {}): Property[] {
-  const q = query.toLowerCase();
-  let results = MOCK_PROPERTIES;
-
-  if (filters.operation) {
-    results = results.filter((p) => p.operation === filters.operation);
-  }
-  if (filters.city) {
-    results = results.filter((p) => p.city.toLowerCase().includes(filters.city!.toLowerCase()));
-  }
-  if (filters.maxPrice) {
-    results = results.filter((p) => p.price <= filters.maxPrice!);
-  }
-  if (filters.minBedrooms) {
-    results = results.filter((p) => p.bedrooms >= filters.minBedrooms!);
-  }
-  if (filters.type) {
-    results = results.filter((p) => p.type === filters.type);
-  }
-
-  if (q) {
-    results = results.filter(
-      (p) =>
-        p.title.toLowerCase().includes(q) ||
-        p.city.toLowerCase().includes(q) ||
-        p.neighbourhood.toLowerCase().includes(q) ||
-        p.tags.some((t) => t.toLowerCase().includes(q)) ||
-        p.features.some((f) => f.toLowerCase().includes(q)) ||
-        p.description.toLowerCase().includes(q) ||
-        p.type.toLowerCase().includes(q)
-    );
-  }
-
-  return results;
-}
-
-export interface SearchFilters {
-  operation?: OperationType;
-  city?: string;
-  maxPrice?: number;
-  minBedrooms?: number;
-  type?: PropertyType;
-}
-
 export function formatPrice(price: number, operation: OperationType): string {
   const formatted = new Intl.NumberFormat("es-ES", {
     style: "currency",

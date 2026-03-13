@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TrendingUp, Euro, Home, BarChart3, Calculator, ArrowRight, CheckCircle2, Zap } from "lucide-react";
 import Link from "next/link";
 import { estimateRentalYield, estimateAirbnbPotential, estimateMortgage } from "@/lib/ranking";
 import type { Property } from "@/lib/properties";
-import { MOCK_PROPERTIES, formatPrice } from "@/lib/properties";
+import { formatPrice } from "@/lib/properties";
 
 // ─── Yield calculator ─────────────────────────────────────────────────────────
 
@@ -84,17 +84,7 @@ function YieldCalculator() {
   );
 }
 
-// ─── Top yield properties ─────────────────────────────────────────────────────
-
-const TOP_YIELD = MOCK_PROPERTIES
-  .filter((p) => p.operation === "sale")
-  .map((p) => ({
-    ...p,
-    yield: estimateRentalYield(p),
-    airbnb: estimateAirbnbPotential(p),
-  }))
-  .sort((a, b) => b.yield - a.yield)
-  .slice(0, 4);
+type EnrichedProperty = Property & { yield: number; airbnb: number };
 
 // ─── Market stats ─────────────────────────────────────────────────────────────
 
@@ -110,6 +100,25 @@ const MARKET_DATA = [
 ];
 
 export default function InversoresPage() {
+  const [topYield, setTopYield] = useState<EnrichedProperty[]>([]);
+
+  useEffect(() => {
+    fetch("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "", filters: { operation: "sale" } }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const enriched: EnrichedProperty[] = (data.properties as Property[])
+          .map((p) => ({ ...p, yield: estimateRentalYield(p), airbnb: estimateAirbnbPotential(p) }))
+          .sort((a, b) => b.yield - a.yield)
+          .slice(0, 4);
+        setTopYield(enriched);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-stone-50">
       {/* Hero */}
@@ -168,7 +177,7 @@ export default function InversoresPage() {
               Potencial alquiler vacacional (Airbnb)
             </h3>
             <div className="space-y-3 mb-5">
-              {TOP_YIELD.map((p) => (
+              {topYield.map((p) => (
                 <div key={p.id} className="flex items-center justify-between border border-stone-100 rounded-xl p-3">
                   <div className="flex-1 min-w-0 mr-3">
                     <p className="text-sm font-medium text-stone-800 truncate">{p.title}</p>

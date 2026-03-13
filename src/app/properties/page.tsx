@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { SearchBar } from "@/components/SearchBar";
 import { PropertyCard } from "@/components/PropertyCard";
-import { MOCK_PROPERTIES, Property } from "@/lib/properties";
+import { type Property } from "@/lib/properties";
 import { SlidersHorizontal, Sparkles, X, BedDouble, Euro, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ function PropertiesContent() {
 
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [isLoading, setIsLoading] = useState(false);
-  const [properties, setProperties] = useState<Property[]>(MOCK_PROPERTIES);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [interpretation, setInterpretation] = useState<string | null>(null);
   const [fallback, setFallback] = useState<false | { reason: string }>(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -60,31 +60,19 @@ function PropertiesContent() {
       setInterpretation(data.interpretation);
       setFallback(data.fallback ?? false);
     } catch {
-      setProperties(MOCK_PROPERTIES);
+      setProperties([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // On mount: run search if URL has ?q=
+  // On mount: always fetch from API (respects active data source)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (query) doSearch(query); }, []);
+  useEffect(() => { doSearch(query); }, []);
 
-  // Re-run when quick filters change (without re-invoking AI if there's a query)
-  useEffect(() => {
-    if (query) {
-      doSearch(query);
-    } else {
-      let results = MOCK_PROPERTIES;
-      if (opFilter) results = results.filter((p) => p.operation === opFilter);
-      if (cityFilter) results = results.filter((p) => p.city.toLowerCase().includes(cityFilter.toLowerCase()));
-      if (typeFilter) results = results.filter((p) => p.type === typeFilter);
-      if (maxPriceFilter) results = results.filter((p) => p.price <= parseInt(maxPriceFilter));
-      if (bedsFilter) results = results.filter((p) => p.bedrooms >= parseInt(bedsFilter));
-      setProperties(results);
-    }
+  // Re-run search when quick filters change
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opFilter, cityFilter, typeFilter, maxPriceFilter, bedsFilter]);
+  useEffect(() => { doSearch(query); }, [opFilter, cityFilter, typeFilter, maxPriceFilter, bedsFilter]);
 
   const handleSearch = (newQuery: string) => {
     setQuery(newQuery);
@@ -100,7 +88,7 @@ function PropertiesContent() {
     setBedsFilter("");
     setQuery("");
     setInterpretation(null);
-    setProperties(MOCK_PROPERTIES);
+    doSearch("");
     router.replace("/properties");
   };
 
