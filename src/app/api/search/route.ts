@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { MOCK_PROPERTIES } from "@/lib/properties";
 import { localSearch } from "@/lib/localSearch";
 
+// Disabled after first billing/auth failure so we stop hitting the API on every request
+let aiDisabled = false;
+
 // Optionally enhance with Claude if ANTHROPIC_API_KEY is available and has credits
 async function aiEnhancedSearch(query: string) {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
@@ -68,7 +71,15 @@ Spanish property vocabulary: piso/apartamento=apartment, ático=penthouse, chale
     if (termFiltered.length > 0) results = termFiltered;
   }
 
-  if (results.length === 0) results = localSearch(query).properties;
+  // Zero exact results — relax type but keep operation + city as hard filters
+  if (results.length === 0) {
+    let relaxed = MOCK_PROPERTIES;
+    if (filters.operation === "sale" || filters.operation === "rent")
+      relaxed = relaxed.filter((p) => p.operation === filters.operation);
+    if (filters.city)
+      relaxed = relaxed.filter((p) => p.city.toLowerCase().includes(filters.city.toLowerCase()));
+    results = relaxed.length > 0 ? relaxed : localSearch(query).properties;
+  }
 
   return { properties: results, interpretation };
 }
@@ -80,15 +91,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ properties: MOCK_PROPERTIES, interpretation: null });
   }
 
-  // Try AI-enhanced search if API key is configured
-  if (process.env.ANTHROPIC_API_KEY) {
+  // Try AI-enhanced search if API key is configured and known-working
+  if (process.env.ANTHROPIC_API_KEY && !aiDisabled) {
     try {
       const result = await aiEnhancedSearch(query);
       return NextResponse.json(result);
     } catch (error: unknown) {
-      // Log but don't surface to client — fall through to local search
       const msg = error instanceof Error ? error.message : String(error);
-      console.warn(`AI search unavailable (${msg.slice(0, 80)}), using local parser`);
+      // Billing/auth errors won't fix themselves — disable AI for the rest of this process
+      if (msg.includes("credit balance") || msg.includes("invalid_api_key") || msg.includes("authentication")) {
+        aiDisabled = true;
+        console.log("ℹ️  Casalista: Anthropic API unavailable (billing/auth), using local NLP parser");
+      } else {
+        // Transient error — log but keep trying on future requests
+        console.warn(`AI search error: ${msg.slice(0, 120)}`);
+      }
     }
   }
 

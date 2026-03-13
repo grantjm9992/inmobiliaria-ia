@@ -194,14 +194,19 @@ export function localSearch(query: string): { properties: Property[]; interpreta
   if (parsed.maxPrice) results = results.filter((p) => p.price <= parsed.maxPrice!);
   if (parsed.minBedrooms) results = results.filter((p) => p.bedrooms >= parsed.minBedrooms!);
 
-  // Keyword fuzzy pass if nothing structured matched
+  // Keyword fuzzy pass when no results or no structure was parsed
   if (results.length === 0 || (!parsed.city && !parsed.type && !parsed.operation && !parsed.maxPrice)) {
     const words = query
       .toLowerCase()
       .split(/\s+/)
       .filter((w) => w.length > 2);
     if (words.length > 0) {
-      const fuzzy = MOCK_PROPERTIES.filter((p) =>
+      // Base for fuzzy: honour hard filters (operation, city) but relax type/price
+      let fuzzyBase = MOCK_PROPERTIES;
+      if (parsed.operation) fuzzyBase = fuzzyBase.filter((p) => p.operation === parsed.operation);
+      if (parsed.city) fuzzyBase = fuzzyBase.filter((p) => p.city.toLowerCase() === parsed.city!.toLowerCase());
+
+      const fuzzy = fuzzyBase.filter((p) =>
         words.some(
           (w) =>
             p.title.toLowerCase().includes(w) ||
