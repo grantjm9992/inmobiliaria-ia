@@ -182,8 +182,14 @@ export function parseQuery(query: string): ParsedQuery {
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
-export function localSearch(query: string): { properties: Property[]; interpretation: string } {
-  if (!query.trim()) return { properties: MOCK_PROPERTIES, interpretation: "" };
+export interface LocalSearchResult {
+  properties: Property[];
+  interpretation: string;
+  fallback: false | { reason: string };
+}
+
+export function localSearch(query: string): LocalSearchResult {
+  if (!query.trim()) return { properties: MOCK_PROPERTIES, interpretation: "", fallback: false };
 
   const parsed = parseQuery(query);
   let results = MOCK_PROPERTIES;
@@ -193,6 +199,8 @@ export function localSearch(query: string): { properties: Property[]; interpreta
   if (parsed.type) results = results.filter((p) => p.type === parsed.type);
   if (parsed.maxPrice) results = results.filter((p) => p.price <= parsed.maxPrice!);
   if (parsed.minBedrooms) results = results.filter((p) => p.bedrooms >= parsed.minBedrooms!);
+
+  const exactResults = results;
 
   // Keyword fuzzy pass when no results or no structure was parsed
   if (results.length === 0 || (!parsed.city && !parsed.type && !parsed.operation && !parsed.maxPrice)) {
@@ -226,5 +234,27 @@ export function localSearch(query: string): { properties: Property[]; interpreta
 
   if (results.length === 0) results = MOCK_PROPERTIES;
 
-  return { properties: results, interpretation: parsed.interpretation };
+  // Determine whether we're showing a fallback
+  const isExact = exactResults.length > 0;
+  let fallback: false | { reason: string } = false;
+
+  if (!isExact && results.length > 0) {
+    const parts: string[] = [];
+    if (parsed.type) {
+      const typeLabel: Record<string, string> = {
+        villa: "chalets/villas", apartment: "pisos", penthouse: "áticos",
+        studio: "estudios", townhouse: "adosados", finca: "fincas",
+      };
+      parts.push(`no hay ${typeLabel[parsed.type] ?? parsed.type} disponibles`);
+    }
+    if (parsed.city) parts.push(`en ${parsed.city}`);
+    const qualifier = parsed.city ? ` en ${parsed.city}` : "";
+    fallback = {
+      reason: parts.length > 0
+        ? `No encontramos ${parts.join(" ")}. Mostrando otras propiedades${qualifier} que podrían interesarte.`
+        : "No encontramos resultados exactos. Mostrando propiedades similares.",
+    };
+  }
+
+  return { properties: results, interpretation: parsed.interpretation, fallback };
 }

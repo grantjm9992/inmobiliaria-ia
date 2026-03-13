@@ -5,8 +5,14 @@ import { localSearch } from "@/lib/localSearch";
 // Disabled after first billing/auth failure so we stop hitting the API on every request
 let aiDisabled = false;
 
+interface SearchResult {
+  properties: typeof MOCK_PROPERTIES;
+  interpretation: string | null;
+  fallback: false | { reason: string };
+}
+
 // Optionally enhance with Claude if ANTHROPIC_API_KEY is available and has credits
-async function aiEnhancedSearch(query: string) {
+async function aiEnhancedSearch(query: string): Promise<SearchResult> {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const client = new Anthropic();
 
@@ -71,24 +77,42 @@ Spanish property vocabulary: piso/apartamento=apartment, ático=penthouse, chale
     if (termFiltered.length > 0) results = termFiltered;
   }
 
-  // Zero exact results — relax type but keep operation + city as hard filters
-  if (results.length === 0) {
-    let relaxed = MOCK_PROPERTIES;
-    if (filters.operation === "sale" || filters.operation === "rent")
-      relaxed = relaxed.filter((p) => p.operation === filters.operation);
-    if (filters.city)
-      relaxed = relaxed.filter((p) => p.city.toLowerCase().includes(filters.city.toLowerCase()));
-    results = relaxed.length > 0 ? relaxed : localSearch(query).properties;
+  // Exact match — great
+  if (results.length > 0) {
+    return { properties: results, interpretation, fallback: false };
   }
 
-  return { properties: results, interpretation };
+  // Zero exact results — relax type but keep operation + city as hard filters
+  let relaxed = MOCK_PROPERTIES;
+  let fallbackReason = "No encontramos resultados exactos";
+
+  if (filters.operation === "sale" || filters.operation === "rent")
+    relaxed = relaxed.filter((p) => p.operation === filters.operation);
+  if (filters.city)
+    relaxed = relaxed.filter((p) => p.city.toLowerCase().includes(filters.city.toLowerCase()));
+
+  if (relaxed.length > 0) {
+    const parts: string[] = [];
+    if (filters.type) parts.push(`no hay ${filters.type === "villa" ? "chalets/villas" : filters.type} disponibles`);
+    if (filters.city) parts.push(`en ${filters.city}`);
+    fallbackReason = `No encontramos ${parts.join(" ")}. Mostrando otras propiedades${filters.city ? ` en ${filters.city}` : ""} que podrían interesarte.`;
+    return { properties: relaxed, interpretation, fallback: { reason: fallbackReason } };
+  }
+
+  // Nothing at all — return local search results
+  const local = localSearch(query);
+  return {
+    properties: local.properties,
+    interpretation,
+    fallback: { reason: "No encontramos resultados exactos para tu búsqueda. Aquí tienes propiedades similares." },
+  };
 }
 
 export async function POST(req: NextRequest) {
   const { query } = await req.json();
 
   if (!query?.trim()) {
-    return NextResponse.json({ properties: MOCK_PROPERTIES, interpretation: null });
+    return NextResponse.json({ properties: MOCK_PROPERTIES, interpretation: null, fallback: false });
   }
 
   // Try AI-enhanced search if API key is configured and known-working
@@ -98,18 +122,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      // Billing/auth errors won't fix themselves — disable AI for the rest of this process
       if (msg.includes("credit balance") || msg.includes("invalid_api_key") || msg.includes("authentication")) {
         aiDisabled = true;
         console.log("ℹ️  Casalista: Anthropic API unavailable (billing/auth), using local NLP parser");
       } else {
-        // Transient error — log but keep trying on future requests
         console.warn(`AI search error: ${msg.slice(0, 120)}`);
       }
     }
   }
 
   // Local NLP parser — zero cost, no API key needed
-  const { properties, interpretation } = localSearch(query);
-  return NextResponse.json({ properties, interpretation });
+  const { properties, interpretation, fallback } = localSearch(query);
+  return NextResponse.json({ properties, interpretation, fallback });
 }

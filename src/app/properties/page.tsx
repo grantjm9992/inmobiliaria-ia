@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { SearchBar } from "@/components/SearchBar";
 import { PropertyCard } from "@/components/PropertyCard";
 import { MOCK_PROPERTIES, Property } from "@/lib/properties";
-import { SlidersHorizontal, Sparkles, X, BedDouble, Euro } from "lucide-react";
+import { SlidersHorizontal, Sparkles, X, BedDouble, Euro, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CITIES = ["Barcelona", "Madrid", "Marbella", "Valencia", "Sevilla", "Málaga", "Ibiza"];
@@ -26,6 +26,7 @@ function PropertiesContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [properties, setProperties] = useState<Property[]>(MOCK_PROPERTIES);
   const [interpretation, setInterpretation] = useState<string | null>(null);
+  const [fallback, setFallback] = useState<false | { reason: string }>(false);
   const [showFilters, setShowFilters] = useState(false);
 
   // Quick filter state
@@ -38,6 +39,7 @@ function PropertiesContent() {
   const doSearch = async (q: string) => {
     setIsLoading(true);
     setInterpretation(null);
+    setFallback(false);
     try {
       const res = await fetch("/api/search", {
         method: "POST",
@@ -56,6 +58,7 @@ function PropertiesContent() {
 
       setProperties(results);
       setInterpretation(data.interpretation);
+      setFallback(data.fallback ?? false);
     } catch {
       setProperties(MOCK_PROPERTIES);
     } finally {
@@ -238,8 +241,19 @@ function PropertiesContent() {
 
       {/* Results */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* AI interpretation banner */}
-        {interpretation && (
+        {/* Fallback warning — shown instead of the AI banner when results are approximate */}
+        {fallback && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+            <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-700 mb-0.5">Resultados aproximados</p>
+              <p className="text-sm text-amber-700/80">{fallback.reason}</p>
+            </div>
+          </div>
+        )}
+
+        {/* AI interpretation banner — only when results are exact matches */}
+        {interpretation && !fallback && (
           <div className="flex items-start gap-3 bg-terracotta/5 border border-terracotta/20 rounded-xl p-4 mb-6">
             <Sparkles className="w-4 h-4 text-terracotta flex-shrink-0 mt-0.5" />
             <div>
