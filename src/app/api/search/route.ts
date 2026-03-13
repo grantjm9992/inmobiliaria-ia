@@ -1,8 +1,27 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
-import { MOCK_PROPERTIES, searchProperties } from "@/lib/properties";
+import { MOCK_PROPERTIES } from "@/lib/properties";
 
-const client = new Anthropic();
+// Split a free-text query into words and find properties matching any word
+function fuzzySearch(query: string) {
+  const words = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2); // skip tiny words like "en", "de", "en"
+  if (words.length === 0) return MOCK_PROPERTIES;
+  return MOCK_PROPERTIES.filter((p) =>
+    words.some(
+      (w) =>
+        p.title.toLowerCase().includes(w) ||
+        p.city.toLowerCase().includes(w) ||
+        p.neighbourhood.toLowerCase().includes(w) ||
+        p.type.toLowerCase().includes(w) ||
+        p.tags.some((t) => t.toLowerCase().includes(w)) ||
+        p.features.some((f) => f.toLowerCase().includes(w)) ||
+        p.description.toLowerCase().includes(w)
+    )
+  );
+}
 
 export async function POST(req: NextRequest) {
   const { query } = await req.json();
@@ -12,6 +31,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Instantiate inside the handler so a missing API key falls through to fuzzySearch
+    const client = new Anthropic();
+
     // Use Claude to interpret the natural language query and extract structured filters
     const message = await client.messages.create({
       model: "claude-sonnet-4-6",
@@ -55,9 +77,8 @@ Be smart about interpreting Spanish and English property terms. "piso" = apartme
     try {
       parsed = JSON.parse(content.text);
     } catch {
-      // Fall back to simple text search
       return NextResponse.json({
-        properties: searchProperties(query),
+        properties: fuzzySearch(query),
         interpretation: null,
       });
     }
@@ -100,17 +121,16 @@ Be smart about interpreting Spanish and English property terms. "piso" = apartme
       if (termFiltered.length > 0) results = termFiltered;
     }
 
-    // If no filters matched anything meaningful, return all with text search
+    // If no filters matched anything meaningful, fall back to fuzzy word search
     if (results.length === 0) {
-      results = searchProperties(query);
+      results = fuzzySearch(query);
     }
 
     return NextResponse.json({ properties: results, interpretation });
   } catch (error) {
     console.error("AI search error:", error);
-    // Graceful fallback to simple text search
     return NextResponse.json({
-      properties: searchProperties(query),
+      properties: fuzzySearch(query),
       interpretation: null,
     });
   }
