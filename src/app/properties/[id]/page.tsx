@@ -1,8 +1,6 @@
-"use client";
-
-import { use } from "react";
 import { notFound } from "next/navigation";
-import { MOCK_PROPERTIES, formatPrice } from "@/lib/properties";
+import { formatPrice } from "@/lib/properties";
+import { getRepository } from "@/lib/repository";
 import {
   BedDouble, Bath, Maximize2, MapPin, Zap, Calendar,
   ChevronLeft, Phone, Mail, CheckCircle2, TrendingUp, Euro, Flame
@@ -21,19 +19,22 @@ const TYPE_LABELS: Record<string, string> = {
   penthouse: "Ático", studio: "Estudio", finca: "Finca",
 };
 
-export default function PropertyDetailPage({
+export default async function PropertyDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params);
-  const property = MOCK_PROPERTIES.find((p) => p.id === id);
+  const { id } = await params;
+  const repo = getRepository();
+  const property = await repo.getById(id);
 
   if (!property) notFound();
 
-  const similar = MOCK_PROPERTIES.filter(
-    (p) => p.id !== property.id && (p.city === property.city || p.type === property.type)
-  ).slice(0, 3);
+  const similar = repo.getSimilar
+    ? await repo.getSimilar(id, 3)
+    : await repo.getMany({ city: property.city, operation: property.operation }, 3).then(
+        (r) => r.filter((p) => p.id !== id).slice(0, 3)
+      );
 
   return (
     <div className="min-h-screen bg-stone-50">

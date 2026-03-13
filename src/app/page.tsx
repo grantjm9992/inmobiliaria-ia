@@ -1,13 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { SearchBar } from "@/components/SearchBar";
 import { PropertyCard } from "@/components/PropertyCard";
-import { MOCK_PROPERTIES } from "@/lib/properties";
+import type { Property } from "@/lib/properties";
 import { TrendingUp, Shield, Zap, Users, Star, ArrowRight, MapPin } from "lucide-react";
 import Link from "next/link";
-
-const FEATURED = MOCK_PROPERTIES.slice(0, 4);
 
 const POPULAR_SEARCHES = [
   { label: "Pisos en Barcelona", query: "piso Barcelona" },
@@ -26,6 +25,18 @@ const CITIES = [
 
 export default function HomePage() {
   const router = useRouter();
+  const [featured, setFeatured] = useState<Property[]>([]);
+
+  useEffect(() => {
+    fetch("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "" }),
+    })
+      .then((r) => r.json())
+      .then((data) => setFeatured((data.properties as Property[]).slice(0, 4)))
+      .catch(() => {});
+  }, []);
 
   const handleSearch = (query: string) => {
     if (query.trim()) {
@@ -113,7 +124,7 @@ export default function HomePage() {
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {FEATURED.map((p) => (
+          {featured.map((p) => (
             <PropertyCard key={p.id} property={p} />
           ))}
         </div>
