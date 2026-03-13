@@ -1,26 +1,76 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { MOCK_PROPERTIES } from "@/lib/properties";
+import { localSearch } from "@/lib/localSearch";
 
-// Split a free-text query into words and find properties matching any word
-function fuzzySearch(query: string) {
-  const words = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 2); // skip tiny words like "en", "de", "en"
-  if (words.length === 0) return MOCK_PROPERTIES;
-  return MOCK_PROPERTIES.filter((p) =>
-    words.some(
-      (w) =>
-        p.title.toLowerCase().includes(w) ||
-        p.city.toLowerCase().includes(w) ||
-        p.neighbourhood.toLowerCase().includes(w) ||
-        p.type.toLowerCase().includes(w) ||
-        p.tags.some((t) => t.toLowerCase().includes(w)) ||
-        p.features.some((f) => f.toLowerCase().includes(w)) ||
-        p.description.toLowerCase().includes(w)
-    )
-  );
+// Optionally enhance with Claude if ANTHROPIC_API_KEY is available and has credits
+async function aiEnhancedSearch(query: string) {
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const client = new Anthropic();
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 512,
+    messages: [
+      {
+        role: "user",
+        content: `You are a Spanish property search assistant for Casalista.
+
+Analyze this query and return a JSON object (no markdown):
+{
+  "interpretation": "1-2 sentence friendly Spanish description of what they want",
+  "filters": {
+    "operation": "sale" | "rent" | null,
+    "city": "Spanish city name" | null,
+    "maxPrice": number | null,
+    "minBedrooms": number | null,
+    "type": "apartment" | "villa" | "townhouse" | "penthouse" | "studio" | "finca" | null
+  },
+  "searchTerms": ["key", "feature", "terms"]
+}
+
+Query: "${query}"
+
+Spanish property vocabulary: piso/apartamento=apartment, ático=penthouse, chalet=villa, adosado=townhouse, finca/cortijo=finca, alquilar=rent, comprar=sale.`,
+      },
+    ],
+  });
+
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("unexpected");
+
+  const parsed = JSON.parse(content.text);
+  const { interpretation, filters, searchTerms = [] } = parsed;
+
+  let results = MOCK_PROPERTIES;
+  if (filters.operation === "sale" || filters.operation === "rent")
+    results = results.filter((p) => p.operation === filters.operation);
+  if (filters.city)
+    results = results.filter((p) =>
+      p.city.toLowerCase().includes(filters.city.toLowerCase())
+    );
+  if (typeof filters.maxPrice === "number")
+    results = results.filter((p) => p.price <= filters.maxPrice);
+  if (typeof filters.minBedrooms === "number")
+    results = results.filter((p) => p.bedrooms >= filters.minBedrooms);
+  if (filters.type)
+    results = results.filter((p) => p.type === filters.type);
+
+  if (searchTerms.length > 0) {
+    const termFiltered = results.filter((p) =>
+      searchTerms.some(
+        (term: string) =>
+          p.title.toLowerCase().includes(term.toLowerCase()) ||
+          p.tags.some((t) => t.toLowerCase().includes(term.toLowerCase())) ||
+          p.features.some((f) => f.toLowerCase().includes(term.toLowerCase())) ||
+          p.description.toLowerCase().includes(term.toLowerCase())
+      )
+    );
+    if (termFiltered.length > 0) results = termFiltered;
+  }
+
+  if (results.length === 0) results = localSearch(query).properties;
+
+  return { properties: results, interpretation };
 }
 
 export async function POST(req: NextRequest) {
@@ -30,108 +80,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ properties: MOCK_PROPERTIES, interpretation: null });
   }
 
-  try {
-    // Instantiate inside the handler so a missing API key falls through to fuzzySearch
-    const client = new Anthropic();
-
-    // Use Claude to interpret the natural language query and extract structured filters
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      messages: [
-        {
-          role: "user",
-          content: `You are an AI assistant for a Spanish property search engine called Casalista.
-
-Analyze this property search query and extract structured information from it.
-Query: "${query}"
-
-Respond with a JSON object (no markdown, just raw JSON) with these fields:
-{
-  "interpretation": "A friendly 1-2 sentence Spanish summary of what the user is looking for",
-  "filters": {
-    "operation": "sale" | "rent" | null,
-    "city": "city name in Spanish" | null,
-    "maxPrice": number | null,
-    "minBedrooms": number | null,
-    "type": "apartment" | "villa" | "townhouse" | "penthouse" | "studio" | "finca" | null
-  },
-  "searchTerms": ["array", "of", "key", "terms", "to", "text", "search"]
-}
-
-For example:
-- "3 bed apartment in Barcelona under 500k" → operation: "sale", city: "Barcelona", maxPrice: 500000, minBedrooms: 3, type: "apartment"
-- "villa with pool Marbella" → city: "Marbella", type: "villa", searchTerms: ["pool", "villa"]
-- "modern flat to rent in Madrid" → operation: "rent", city: "Madrid", type: "apartment", searchTerms: ["modern"]
-- "cortijo andaluz con olivos" → type: "finca", city: null, searchTerms: ["olivos", "cortijo", "andaluz"]
-
-Be smart about interpreting Spanish and English property terms. "piso" = apartment, "chalet" = villa, "ático" = penthouse, "finca/cortijo" = finca.`,
-        },
-      ],
-    });
-
-    const content = message.content[0];
-    if (content.type !== "text") throw new Error("Unexpected response type");
-
-    let parsed: { interpretation: string; filters: Record<string, unknown>; searchTerms: string[] };
+  // Try AI-enhanced search if API key is configured
+  if (process.env.ANTHROPIC_API_KEY) {
     try {
-      parsed = JSON.parse(content.text);
-    } catch {
-      return NextResponse.json({
-        properties: fuzzySearch(query),
-        interpretation: null,
-      });
+      const result = await aiEnhancedSearch(query);
+      return NextResponse.json(result);
+    } catch (error: unknown) {
+      // Log but don't surface to client — fall through to local search
+      const msg = error instanceof Error ? error.message : String(error);
+      console.warn(`AI search unavailable (${msg.slice(0, 80)}), using local parser`);
     }
-
-    const { interpretation, filters, searchTerms = [] } = parsed;
-
-    // Apply structured filters
-    let results = MOCK_PROPERTIES;
-
-    if (filters.operation === "sale" || filters.operation === "rent") {
-      results = results.filter((p) => p.operation === filters.operation);
-    }
-    if (filters.city && typeof filters.city === "string") {
-      results = results.filter((p) =>
-        p.city.toLowerCase().includes((filters.city as string).toLowerCase())
-      );
-    }
-    if (typeof filters.maxPrice === "number") {
-      results = results.filter((p) => p.price <= (filters.maxPrice as number));
-    }
-    if (typeof filters.minBedrooms === "number") {
-      results = results.filter((p) => p.bedrooms >= (filters.minBedrooms as number));
-    }
-    if (filters.type && typeof filters.type === "string") {
-      results = results.filter((p) => p.type === filters.type);
-    }
-
-    // Apply text search with extracted terms
-    if (searchTerms.length > 0) {
-      const termFiltered = results.filter((p) =>
-        searchTerms.some(
-          (term: string) =>
-            p.title.toLowerCase().includes(term.toLowerCase()) ||
-            p.tags.some((t) => t.toLowerCase().includes(term.toLowerCase())) ||
-            p.features.some((f) => f.toLowerCase().includes(term.toLowerCase())) ||
-            p.description.toLowerCase().includes(term.toLowerCase())
-        )
-      );
-      // Only apply term filter if it returns results, otherwise keep filter-only results
-      if (termFiltered.length > 0) results = termFiltered;
-    }
-
-    // If no filters matched anything meaningful, fall back to fuzzy word search
-    if (results.length === 0) {
-      results = fuzzySearch(query);
-    }
-
-    return NextResponse.json({ properties: results, interpretation });
-  } catch (error) {
-    console.error("AI search error:", error);
-    return NextResponse.json({
-      properties: fuzzySearch(query),
-      interpretation: null,
-    });
   }
+
+  // Local NLP parser — zero cost, no API key needed
+  const { properties, interpretation } = localSearch(query);
+  return NextResponse.json({ properties, interpretation });
 }
