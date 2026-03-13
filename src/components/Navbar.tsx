@@ -28,11 +28,14 @@ export function Navbar() {
             <Link href="/properties?op=rent" className="text-stone-600 hover:text-terracotta transition-colors font-medium">
               Alquilar
             </Link>
-            <Link href="/vender" className="text-stone-600 hover:text-terracotta transition-colors font-medium">
-              Vender
+            <Link href="/barrios" className="text-stone-600 hover:text-terracotta transition-colors font-medium">
+              Barrios
+            </Link>
+            <Link href="/inversores" className="text-stone-600 hover:text-terracotta transition-colors font-medium">
+              Inversores
             </Link>
             <Link href="/agentes" className="text-stone-600 hover:text-terracotta transition-colors font-medium">
-              Para Agentes
+              Agentes
             </Link>
           </div>
 
