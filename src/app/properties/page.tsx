@@ -63,12 +63,15 @@ function PropertiesContent() {
     }
   };
 
-  // Run search on mount if query param exists
+  // On mount: run search if URL has ?q=
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (query) doSearch(query); }, []);
+
+  // Re-run when quick filters change (without re-invoking AI if there's a query)
   useEffect(() => {
     if (query) {
       doSearch(query);
     } else {
-      // Apply filters to all properties
       let results = MOCK_PROPERTIES;
       if (opFilter) results = results.filter((p) => p.operation === opFilter);
       if (cityFilter) results = results.filter((p) => p.city.toLowerCase().includes(cityFilter.toLowerCase()));
