@@ -56,9 +56,18 @@ create table if not exists properties (
   unique (source, source_id)
 );
 
--- Full-text search index
-create index if not exists properties_fts on properties
-  using gin (to_tsvector('spanish', coalesce(title,'') || ' ' || coalesce(description,'') || ' ' || coalesce(city,'') || ' ' || coalesce(neighbourhood,'')));
+-- Full-text search generated column + index
+alter table properties
+  add column if not exists search_vector tsvector
+    generated always as (
+      to_tsvector('spanish',
+        coalesce(title,'') || ' ' ||
+        coalesce(description,'') || ' ' ||
+        coalesce(city,'') || ' ' ||
+        coalesce(neighbourhood,''))
+    ) stored;
+
+create index if not exists properties_fts on properties using gin (search_vector);
 
 -- Spatial / filter indexes
 create index if not exists properties_city       on properties (city);
