@@ -13,10 +13,16 @@
  *   npx playwright install chromium
  */
 
-import { chromium, type Page } from "playwright";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { chromium } = require("playwright-extra");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+import type { Page } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
 import * as path from "path";
+
+chromium.use(StealthPlugin());
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
@@ -130,13 +136,21 @@ async function run() {
   const citySlug = CITY_SLUGS[CITY] ?? CITY;
   const browser = await chromium.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-blink-features=AutomationControlled",
+    ],
   });
   const context = await browser.newContext({
     userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     locale: "es-ES",
-    viewport: { width: 1280, height: 900 },
+    viewport: { width: 1440, height: 900 },
+    extraHTTPHeaders: {
+      "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    },
   });
   const page = await context.newPage();
 
