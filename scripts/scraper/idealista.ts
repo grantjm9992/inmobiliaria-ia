@@ -34,12 +34,12 @@ const OPERATION: "sale" | "rent" = (args.operation as "sale" | "rent") ?? "sale"
 const MAX_PAGES: number = parseInt(args.pages ?? "3");
 
 const CITY_SLUGS: Record<string, string> = {
-  barcelona: "barcelona-capital",
-  madrid: "madrid-capital",
-  valencia: "valencia-capital",
+  barcelona: "barcelona-barcelona",
+  madrid: "madrid-madrid",
+  valencia: "valencia-valencia",
+  sevilla: "sevilla-sevilla",
   marbella: "marbella",
-  malaga: "malaga-capital",
-  sevilla: "sevilla-capital",
+  malaga: "malaga-malaga",
   ibiza: "eivissa",
 };
 
