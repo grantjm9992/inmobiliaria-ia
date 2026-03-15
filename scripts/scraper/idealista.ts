@@ -71,6 +71,20 @@ async function scrapePage(page: Page, url: string) {
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(1500 + Math.random() * 1000); // polite delay
 
+  // Debug: show page title and first article-like elements found
+  const debug = await page.evaluate(() => ({
+    title: document.title,
+    articleTags: document.querySelectorAll("article").length,
+    sampleClasses: Array.from(document.querySelectorAll("article")).slice(0, 3).map(a => a.className),
+    bodySnippet: document.body.innerHTML.slice(0, 500),
+  }));
+  console.log("  [debug] title:", debug.title);
+  console.log("  [debug] <article> count:", debug.articleTags);
+  console.log("  [debug] sample classes:", debug.sampleClasses);
+  if (debug.articleTags === 0) {
+    console.log("  [debug] body snippet:", debug.bodySnippet);
+  }
+
   const listings = await page.evaluate(() => {
     const cards = Array.from(document.querySelectorAll("article.item"));
     return cards.map((card) => {
