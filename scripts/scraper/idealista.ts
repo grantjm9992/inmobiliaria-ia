@@ -65,23 +65,11 @@ function randomDelay(min: number, max: number): Promise<void> {
 }
 
 async function humanScroll(page: Page) {
-  await page.evaluate(async () => {
-    await new Promise<void>((resolve) => {
-      let scrolled = 0;
-      const total = document.body.scrollHeight * 0.6;
-      const step = () => {
-        const amount = 80 + Math.random() * 120;
-        window.scrollBy(0, amount);
-        scrolled += amount;
-        if (scrolled < total) {
-          setTimeout(step, 80 + Math.random() * 120);
-        } else {
-          resolve();
-        }
-      };
-      setTimeout(step, 300);
-    });
-  });
+  // Use mouse.wheel to avoid esbuild-transpiled async code in page.evaluate
+  for (let i = 0; i < 6; i++) {
+    await page.mouse.wheel(0, 100 + Math.random() * 150);
+    await randomDelay(80, 180);
+  }
 }
 
 async function randomMouseMove(page: Page) {
