@@ -74,8 +74,8 @@ function guessType(title: string, typozText: string): string {
 
 async function scrapePage(page: Page, url: string) {
   console.log(`  → ${url}`);
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await page.waitForTimeout(1500 + Math.random() * 1000); // polite delay
+  await page.goto(url, { waitUntil: "networkidle", timeout: 45000 });
+  await page.waitForTimeout(2000 + Math.random() * 1500); // let DataDome JS settle
 
   // Debug: show page title and first article-like elements found
   const debug = await page.evaluate(() => ({
@@ -135,7 +135,7 @@ async function scrapeDetail(page: Page, url: string) {
 async function run() {
   const citySlug = CITY_SLUGS[CITY] ?? CITY;
   const browser = await chromium.launch({
-    headless: true,
+    headless: false,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
